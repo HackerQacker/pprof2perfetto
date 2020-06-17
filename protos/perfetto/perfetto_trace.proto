@@ -7137,3 +7137,4 @@ message Trace {
 }
 
 // End of protos/perfetto/trace/trace.proto
+option go_package = "perfetto";

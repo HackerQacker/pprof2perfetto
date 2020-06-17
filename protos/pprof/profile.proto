@@ -210,3 +210,4 @@ message Function {
   // Line number in source file.
   int64 start_line = 5;
 }
+option go_package = "pprof";
