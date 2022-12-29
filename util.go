@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/omerye/pprof2perfetto/protos/perfetto"
 	"github.com/omerye/pprof2perfetto/protos/pprof"
 )
@@ -75,10 +77,25 @@ func NewInternedDataProxy(p *pprof.Profile) *InternedDataProxy {
 }
 
 func makeInternedData(p *pprof.Profile) *perfetto.InternedData {
+	/* TODOs:
+	 * Parse comments to DebugAnnotations
+	 * Parse labels to categories
+	 */
+
 	buildIds := NewInternedStringProxy(p.StringTable)
 	mappingPaths := NewInternedStringProxy(p.StringTable)
 	sourcePaths := NewInternedStringProxy(p.StringTable)
 	functionNames := NewInternedStringProxy(p.StringTable)
+
+	// categories := make([]*perfetto.EventCategory, len(p.SampleType))
+	// for i, v := range p.SampleType {
+	// 	iid := uint64(i)
+	// 	name := p.StringTable[v.Type]
+	// 	categories[i] = &perfetto.EventCategory{
+	// 		Iid:  &iid,
+	// 		Name: &name,
+	// 	}
+	// }
 
 	mappings := make([]*perfetto.Mapping, len(p.Mapping))
 	for i, m := range p.Mapping {
@@ -100,7 +117,11 @@ func makeInternedData(p *pprof.Profile) *perfetto.InternedData {
 	for i, l := range p.Location {
 		for _, line := range l.Line {
 			iid := uint64(len(sourceLocations))
-			function := p.Function[line.FunctionId]
+			function, err := findFunction(p, line.FunctionId)
+			if err != nil {
+				panic(err)
+			}
+
 			funcName := p.StringTable[function.Name]
 			fileName := p.StringTable[function.Filename]
 			lineNum := uint32(line.Line)
@@ -145,6 +166,33 @@ func makeInternedData(p *pprof.Profile) *perfetto.InternedData {
 	}
 }
 
+func findFunction(p *pprof.Profile, id uint64) (*pprof.Function, error) {
+	for _, f := range p.Function {
+		if f.Id == id {
+			return f, nil
+		}
+	}
+	return nil, errors.New("invalid function id")
+}
+
+func findLocation(p *pprof.Profile, id uint64) (*pprof.Location, error) {
+	for _, l := range p.Location {
+		if l.Id == id {
+			return l, nil
+		}
+	}
+
+	return nil, errors.New("invalid location id")
+}
+
 func (this *InternedDataProxy) Get() *perfetto.InternedData {
 	return this.internedData
+}
+
+func (this *InternedDataProxy) Callstack(i uint64) (*perfetto.Callstack, error) {
+	if int(i) >= len(this.internedData.Callstacks) {
+		return nil, errors.New("callstack for found")
+	}
+
+	return this.internedData.Callstacks[i], nil
 }
